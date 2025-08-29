@@ -31,9 +31,6 @@ public class DynamicArray {
         Node currNew = newArray.root;
         Node currOld = this.root;
 
-        // highest set bit (0..31). For i == 0, depth is 0.
-        // int highestBit = (i == 0) ? 0 : 31 - Integer.numberOfLeadingZeros(i);
-
         // Build the path; share the opposite branch from old
         for (int bitPos = 31; bitPos >= 0; --bitPos) {
             int bit = (i >>> bitPos) & 1;
@@ -62,8 +59,6 @@ public class DynamicArray {
         if (i < 0 || root == null) return 0;
 
         Node current = root;
-        // int highestBit = (i == 0) ? 0 : 31 - Integer.numberOfLeadingZeros(i);
-
         for (int bitPos = 31; bitPos >= 0; --bitPos) {
             if (current == null) return 0;
             int bit = (i >>> bitPos) & 1;
