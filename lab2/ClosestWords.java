@@ -45,12 +45,21 @@ public class ClosestWords {
   }
 
   public ClosestWords(String w, List<String> wordList) {
+    closestWords = new LinkedList<String>();
+
     for (String s : wordList) {
       int dist = distance(w, s);
-      // System.out.println("d(" + w + "," + s + ")=" + dist);
+
+      if (dist == 0) {
+        closestDistance = 0;
+        closestWords.clear();
+        closestWords.add(s);
+        return;
+      }
+
       if (dist < closestDistance || closestDistance == -1) {
         closestDistance = dist;
-        closestWords = new LinkedList<String>();
+        closestWords.clear();
         closestWords.add(s);
       }
       else if (dist == closestDistance)
