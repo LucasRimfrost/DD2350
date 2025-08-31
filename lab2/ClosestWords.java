@@ -10,34 +10,34 @@ public class ClosestWords {
   int closestDistance = -1;
 
   int partDist(String w1, String w2, int w1len, int w2len) {
-    final int cols = w2len + 1;
-    int[] M = new int[(w1len + 1) * cols];
+    int[] prev = new int[w2len + 1];  // Föregående rad (rad i-1)
+    int[] curr = new int[w2len + 1];  // Nuvarande rad (rad i)
 
-    // Base case
-    for (int i = 0; i <= w1len; ++i) {
-      M[i * cols + 0] = i; // M[i][0] = i
-    }
-    for (int j = 0; j <= w2len; ++j) {
-      M[0 * cols + j] = j; // M[j][0] = j
+    // Base case: första raden (tom sträng → w2)
+    for (int j = 0; j <= w2len; j++) {
+        prev[j] = j;  // prev[j] motsvarar M[0][j]
     }
 
-    // Fill matrix
+    // Beräkna rad för rad
     for (int i = 1; i <= w1len; i++) {
-      for (int j = 1; j <= w2len; j++) {
-        int currentIdx = i * cols + j;           // M[i][j]
-        int diagIdx = (i-1) * cols + (j-1);     // M[i-1][j-1]
-        int upIdx = (i-1) * cols + j;           // M[i-1][j]
-        int leftIdx = i * cols + (j-1);         // M[i][j-1]
+        curr[0] = i;  // Base case: M[i][0] = i
 
-        int substitution = M[diagIdx] + (w1.charAt(i-1) == w2.charAt(j-1) ? 0 : 1);
-        int deletion = M[upIdx] + 1;
-        int insertion = M[leftIdx] + 1;
+        for (int j = 1; j <= w2len; j++) {
+            // Samma 3 fall som tidigare:
+            int substitution = prev[j-1] + (w1.charAt(i-1) == w2.charAt(j-1) ? 0 : 1);
+            int deletion = prev[j] + 1;
+            int insertion = curr[j-1] + 1;
 
-        M[currentIdx] = Math.min(substitution, Math.min(deletion, insertion));
-      }
+            curr[j] = Math.min(substitution, Math.min(deletion, insertion));
+        }
+
+        // Swap: curr blir prev för nästa iteration
+        int[] temp = prev;
+        prev = curr;
+        curr = temp;
     }
 
-    return M[w1len * cols + w2len];  // M[w1len][w2len]
+    return prev[w2len];  // Sista raden ligger nu i prev
   }
 
   int distance(String w1, String w2) {
