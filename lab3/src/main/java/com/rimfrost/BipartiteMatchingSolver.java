@@ -6,7 +6,7 @@ public class BipartiteMatchingSolver {
     private Kattio io;
     private int xNodes, yNodes;
     private int source, sink, totalNodes;
-    private List<int[]> matching = new ArrayList<>();
+        private List<long[]> matching = new ArrayList<>();
 
     void readBipartiteGraphAndSolve() {
         xNodes = io.getInt();
@@ -41,18 +41,18 @@ public class BipartiteMatchingSolver {
         solver.maxFlow(source - 1, sink - 1);
 
         // Extract which edges actually got flow - these form our matching
-        List<int[]> flowResult = solver.getFlowEdges();
+        List<long[]> flowResult = solver.getFlowEdges();
         matching.clear();
 
-        for (int[] edge : flowResult) {
-            int from = edge[0];  // Already converted back to 1-based
-            int to = edge[1];
+        for (long[] edge : flowResult) {
+            long from = edge[0];  // Already converted back to 1-based
+            long to = edge[1];
 
             // We only want X->Y edges (ignore source->X and Y->sink edges)
             // getFlowEdges() already filtered out zero-flow edges for us
             if (1 <= from && from <= xNodes &&
                 (xNodes + 1) <= to && to <= (xNodes + yNodes)) {
-                matching.add(new int[]{from, to});
+                matching.add(new long[]{from, to});
             }
         }
     }
@@ -60,7 +60,7 @@ public class BipartiteMatchingSolver {
     void writeBipartiteMatchingSolution() {
         io.println(xNodes + " " + yNodes);
         io.println(matching.size());
-        for (int[] pair : matching) {
+        for (long[] pair : matching) {
             io.println(pair[0] + " " + pair[1]);
         }
         io.println();
