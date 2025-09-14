@@ -1,191 +1,137 @@
 /* Labb 2 i DD2350 Algoritmer, datastrukturer och komplexitet    */
-/* KONSERVATIVA optimeringar som behåller korrekthet               */
+/* Se labbinstruktionerna i kursrummet i Canvas                  */
+/* Ursprunglig författare: Viggo Kann KTH viggo@nada.kth.se      */
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 public class ClosestWords {
-    LinkedList<String> closestWords = null;
-    int closestDistance = -1;
+  private final int minDistance;
+  private final List<String> closestWords;
 
-    private int[] prev, curr;
+  public ClosestWords(String query, List<String> dictionary) {
+    final int m = query.length();
 
-    int distance(String w1, String w2) {
-        return distance(w1, w2, Integer.MAX_VALUE);
+    // Edge case: distance from empty string to a word is its length
+    if (m == 0) {
+      int best = Integer.MAX_VALUE;
+      List<String> ties = new ArrayList<>();
+      for (String w : dictionary) {
+        int d = w.length();
+        if (d < best) {
+          best = d;
+          ties.clear();
+          ties.add(w);
+        } else if (d == best) {
+          ties.add(w);
+        }
+      }
+      this.minDistance = (best == Integer.MAX_VALUE) ? 0 : best;
+      this.closestWords = ties;
+      return;
     }
 
-    int distance(String w1, String w2, int threshold) {
-        int w1len = w1.length();
-        int w2len = w2.length();
+    // Build 256-entry mask: patternMask[c] has 1-bits where query has char c
+    final long[] patternMask = buildPatternMask256(query);
 
-        // Säkra exit-villkor
-        if (Math.abs(w1len - w2len) > threshold) {
-            return threshold + 1;
-        }
-        if (w1.equals(w2)) {
-            return 0;
-        }
-        if (w1len == 0) return w2len;
-        if (w2len == 0) return w1len;
+    int best = Integer.MAX_VALUE;
+    List<String> ties = new ArrayList<>();
 
-        // LÄGG TILL: Prefix/suffix trimming - MEN FÖRSIKTIGT
-        int startIndex = 0;
-        int w1End = w1len;
-        int w2End = w2len;
+    // Scan dictionary; use length-diff lower bound + in-loop early abandon
+    for (int i = 0, n = dictionary.size(); i < n; i++) {
+      final String cand = dictionary.get(i);
 
-        // Trimma identisk prefix
-        while (startIndex < w1End && startIndex < w2End &&
-               w1.charAt(startIndex) == w2.charAt(startIndex)) {
-            startIndex++;
-        }
+      // Lower bound: at least the absolute length difference
+      int lenDiff = cand.length() - m;
+      if (lenDiff < 0) lenDiff = -lenDiff;
+      if (lenDiff > best) continue;
 
-        // Trimma identisk suffix
-        while (startIndex < w1End && startIndex < w2End &&
-               w1.charAt(w1End - 1) == w2.charAt(w2End - 1)) {
-            w1End--;
-            w2End--;
-        }
+      int dist = levenshteinBitParallelPruned(query, cand, patternMask, m, best);
+      if (dist > best) continue; // pruned path returns best+1
 
-        // Kör DP på trimmade delen
-        int trimmedW1Len = w1End - startIndex;
-        int trimmedW2Len = w2End - startIndex;
-
-        if (trimmedW1Len == 0) return trimmedW2Len;
-        if (trimmedW2Len == 0) return trimmedW1Len;
-
-        // OPTIMERING: Säkerställ att w2 är kortare (färre kolumner = snabbare)
-        boolean swapped = false;
-        if (trimmedW1Len < trimmedW2Len) {
-            // Swappa så vi jobbar med färre kolumner
-            String tempStr = w1; w1 = w2; w2 = tempStr;
-            int tempIdx = startIndex; // Detta är samma för båda efter trimming
-            int tempEnd = w1End; w1End = w2End; w2End = tempEnd;
-            int tempLen = trimmedW1Len; trimmedW1Len = trimmedW2Len; trimmedW2Len = tempLen;
-            swapped = true;
-        }
-
-        // Array management
-        int requiredSize = trimmedW2Len + 1;
-        if (prev == null || prev.length < requiredSize) {
-            prev = new int[requiredSize];
-            curr = new int[requiredSize];
-        }
-
-        // Initialisera första raden
-        for (int j = 0; j <= trimmedW2Len; j++) {
-            prev[j] = j;
-        }
-
-        // Iterativ DP med optimeringar
-        for (int i = 1; i <= trimmedW1Len; i++) {
-            curr[0] = i;
-            int rowMin = i;
-
-            // Character caching
-            char sourceChar = w1.charAt(startIndex + i - 1);
-
-            for (int j = 1; j <= trimmedW2Len; j++) {
-                char targetChar = w2.charAt(startIndex + j - 1);
-
-                // Branch optimization
-                if (sourceChar == targetChar) {
-                    curr[j] = prev[j - 1];
-                } else {
-                    int substitute = prev[j - 1] + 1;
-                    int delete = prev[j] + 1;
-                    int insert = curr[j - 1] + 1;
-                    curr[j] = Math.min(substitute, Math.min(delete, insert));
-                }
-
-                if (curr[j] < rowMin) {
-                    rowMin = curr[j];
-                }
-            }
-
-            // Early exit om hela raden är för dyr
-            if (rowMin > threshold) {
-                return threshold + 1;
-            }
-
-            // Växla rader
-            int[] temp = prev;
-            prev = curr;
-            curr = temp;
-        }
-
-        return prev[trimmedW2Len];
+      if (dist < best) {
+        best = dist;
+        ties.clear();
+        ties.add(cand); // dictionary is already lexicographically sorted
+      } else { // dist == best
+        ties.add(cand);
+      }
     }
 
-    public ClosestWords(String w, Map<Integer, List<String>> wordsByLength) {
-        int wLen = w.length();
+    this.minDistance = (best == Integer.MAX_VALUE) ? 0 : best;
+    this.closestWords = ties;
+  }
 
-        // BARA LITE mer konservativ än innan - inte för aggressiv
-        for (int lengthDiff = 0; lengthDiff <= Math.min(wLen + 5, 12); lengthDiff++) {
+  public int getMinDistance() {
+    return minDistance;
+  }
 
-            if (lengthDiff == 0) {
-                processWordsOfLength(w, wLen, wordsByLength);
-            } else {
-                if (wLen - lengthDiff > 0) {
-                    processWordsOfLength(w, wLen - lengthDiff, wordsByLength);
-                }
-                if (wLen + lengthDiff <= 35) { // Lite mer restriktiv men inte crazy
-                    processWordsOfLength(w, wLen + lengthDiff, wordsByLength);
-                }
-            }
+  public List<String> getClosestWords() {
+    // Already lexicographically ordered because dictionary input is sorted
+    return closestWords;
+  }
 
-            // Konservativa early exits
-            if (closestDistance == 0) {
-                break;
-            }
-            if (closestDistance != -1 && lengthDiff > closestDistance) {
-                break;
-            }
-        }
+  // ---------- Helpers ----------
+
+  /** Build 256-entry bitmask for the query: patternMask[c] marks all positions of char c. */
+  private static long[] buildPatternMask256(String query) {
+    final int m = query.length();
+    final long[] mask = new long[256];
+    long bit = 1L;
+    for (int i = 0; i < m; i++, bit <<= 1) {
+      mask[query.charAt(i) & 0xFF] |= bit; // å/ä/ö are in Latin-1 -> safe with & 0xFF
     }
+    return mask;
+  }
 
-    private void processWordsOfLength(String w, int targetLen,
-                                    Map<Integer, List<String>> wordsByLength) {
-        List<String> wordsOfThisLength = wordsByLength.get(targetLen);
-        if (wordsOfThisLength == null) {
-            return;
-        }
+  /**
+   * Myers 1-word bit-parallel Levenshtein with pruning. Returns the exact distance, or
+   * (bestSoFar+1) if it proves it can't beat bestSoFar. Assumes 1 <= m <= 63 (here: m < 40 by
+   * problem spec).
+   */
+  private static int levenshteinBitParallelPruned(
+      String query, String text, long[] patternMask, int m, int bestSoFar) {
 
-        // MINIMAL optimering: Begränsa antal ord bara om det är extremt många
-        int limit = wordsOfThisLength.size();
-        if (limit > 50000) { // Bara begränsa om MYCKET många ord
-            limit = 50000;
-        }
+    // Fast path: equal strings
+    if (m == text.length() && query.equals(text)) return 0;
 
-        for (int i = 0; i < limit; i++) {
-            String s = wordsOfThisLength.get(i);
+    // Length-difference lower bound
+    int lenDiff = m - text.length();
+    if (lenDiff < 0) lenDiff = -lenDiff;
+    if (bestSoFar != Integer.MAX_VALUE && lenDiff > bestSoFar) return bestSoFar + 1;
 
-            int threshold = (closestDistance == -1) ? Integer.MAX_VALUE : closestDistance;
-            int dist = distance(w, s, threshold);
+    long Pv = ~0L; // positive bit-vector (all ones)
+    long Mv = 0L; // negative bit-vector (all zeros)
+    int score = m; // cost from query to empty (m deletions)
+    final int n = text.length();
 
-            if (closestDistance != -1 && dist > closestDistance) {
-                continue;
-            }
+    for (int j = 0; j < n; j++) {
+      long Eq = patternMask[text.charAt(j) & 0xFF];
 
-            if (dist < closestDistance || closestDistance == -1) {
-                closestDistance = dist;
-                closestWords = new LinkedList<String>();
-                closestWords.add(s);
-            } else if (dist == closestDistance) {
-                closestWords.add(s);
-            }
-        }
+      long Xv = Eq | Mv;
+      long Xh = (((Eq & Pv) + Pv) ^ Pv) | Eq;
+      long Ph = Mv | ~(Xh | Pv);
+      long Mh = Pv & Xh;
+
+      // Branchless update: MSB tells how the last cell changed
+      score += (int) ((Ph >>> (m - 1)) & 1L);
+      score -= (int) ((Mh >>> (m - 1)) & 1L);
+
+      // Advance to next column
+      Ph = (Ph << 1) | 1L;
+      Mh <<= 1;
+
+      Pv = Mh | ~(Xv | Ph);
+      Mv = Ph & Xv;
+
+      // Early-abandon: even with best-case improvements, can't beat bestSoFar
+      if (bestSoFar != Integer.MAX_VALUE) {
+        int remaining = n - j - 1;
+        int optimistic = score - remaining; // at most -1 per remaining column
+        if (optimistic < 0) optimistic = 0;
+        if (optimistic > bestSoFar) return bestSoFar + 1;
+      }
     }
-
-    int getMinDistance() {
-        return closestDistance;
-    }
-
-    List<String> getClosestWords() {
-        if (closestWords != null) {
-            closestWords.sort(String::compareTo);
-        }
-        return closestWords;
-    }
+    return score;
+  }
 }

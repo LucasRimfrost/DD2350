@@ -1,7 +1,6 @@
 /* Labb 2 i DD2350 Algoritmer, datastrukturer och komplexitet    */
 /* Se labbinstruktionerna i kursrummet i Canvas                  */
 /* Ursprunglig författare: Viggo Kann KTH viggo@nada.kth.se      */
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -9,17 +8,15 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 public class Main {
 
   public static final String DEFAULT_DIR = "./test";
 
   public static List<String> readWordList(BufferedReader input) throws IOException {
-    ArrayList<String> list = new ArrayList<String>();
+    List<String> list = new ArrayList<String>();
     while (true) {
       String s = input.readLine();
       if (s.equals("#")) break;
@@ -28,38 +25,25 @@ public class Main {
     return list;
   }
 
-  public static Map<Integer, List<String>> createLengthBasedDictionary(List<String> wordList) {
-    Map<Integer, List<String>> wordsByLength = new HashMap<>();
-
-    for (String word : wordList) {
-      int len = word.length();
-      wordsByLength.computeIfAbsent(len, k -> new ArrayList<>()).add(word);
-    }
-
-    return wordsByLength;
-  }
-
   public static void main(String args[]) throws IOException {
     if (parseArgs(args)) {
       System.exit(0);
     }
-
+    //    long t1 = System.currentTimeMillis();
     BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in, "UTF-8"));
+    // Säkrast att specificera att UTF-8 ska användas, för vissa system har annan
+    // standardinställning för teckenkodningen.
     List<String> wordList = readWordList(stdin);
-
-    // Skapa length-based dictionary för optimerad sökning
-    Map<Integer, List<String>> wordsByLength = createLengthBasedDictionary(wordList);
-
     String word;
     while ((word = stdin.readLine()) != null) {
-      ClosestWords closestWords = new ClosestWords(word, wordsByLength);
-
+      ClosestWords closestWords = new ClosestWords(word, wordList);
       System.out.print(word + " (" + closestWords.getMinDistance() + ")");
-      for (String w : closestWords.getClosestWords()) {
-        System.out.print(" " + w);
-      }
+      for (String w : closestWords.getClosestWords()) System.out.print(" " + w);
       System.out.println();
     }
+    //    long tottime = (System.currentTimeMillis() - t1);
+    //    System.out.println("CPU time: " + tottime + " ms");
+
   }
 
   private static boolean parseArgs(String[] args) {
@@ -94,16 +78,11 @@ public class Main {
     System.out.println("Processing folder: " + folder);
     File f = new File(folder);
     String[] filenames = f.list();
-    if (filenames == null) {
-      System.out.println("Could not read directory: " + folder);
-      return;
-    }
-
     Arrays.sort(filenames);
     final int N_FILES = filenames.length;
     for (int i = 0; i < N_FILES; i++) {
       String current = filenames[i];
-      if (current.endsWith(".indata")) {
+      if (current.endsWith(".indata")) { // Potential testcase
         int pointPos = current.indexOf(".");
         String testName = current.substring(0, pointPos);
         String outFileName = testName + ".utdata";
@@ -134,7 +113,8 @@ public class Main {
       e.printStackTrace();
       System.exit(4);
     }
-
+    // Säkrast att specificera att UTF-8 ska användas, för vissa system har annan
+    // standardinställning för teckenkodningen.
     List<String> wordList = null;
     try {
       wordList = readWordList(inFile);
@@ -142,14 +122,10 @@ public class Main {
       System.out.println("Could not read the wordList of this testcase.");
       System.exit(1);
     }
-
-    // Skapa optimerad dictionary för detta testfall
-    Map<Integer, List<String>> wordsByLength = createLengthBasedDictionary(wordList);
-
     String word;
     try {
       while ((word = inFile.readLine()) != null) {
-        ClosestWords closestWords = new ClosestWords(word, wordsByLength);
+        ClosestWords closestWords = new ClosestWords(word, wordList);
         String answerLine;
         if ((answerLine = ansFile.readLine()) == null) {
           System.err.println(
