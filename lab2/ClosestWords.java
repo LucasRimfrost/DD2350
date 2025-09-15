@@ -7,59 +7,53 @@ import java.util.List;
 
 public class ClosestWords {
   private final int minDistance;
-  private final List<String> closestWords;
+  private final List<String> closestWords = new ArrayList<>();
 
   public ClosestWords(String query, List<String> dictionary) {
     final int m = query.length();
+    int bestDistance = Integer.MAX_VALUE;
 
     // Edge case: distance from empty string to a word is its length
     if (m == 0) {
-      int best = Integer.MAX_VALUE;
-      List<String> ties = new ArrayList<>();
-      for (String w : dictionary) {
-        int d = w.length();
-        if (d < best) {
-          best = d;
-          ties.clear();
-          ties.add(w);
-        } else if (d == best) {
-          ties.add(w);
+      for (String word : dictionary) {
+        int distance = word.length();
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          closestWords.clear();
+          closestWords.add(word);
+        } else if (distance == bestDistance) {
+          closestWords.add(word);
         }
       }
-      this.minDistance = (best == Integer.MAX_VALUE) ? 0 : best;
-      this.closestWords = ties;
+      this.minDistance = (bestDistance == Integer.MAX_VALUE) ? 0 : bestDistance;
       return;
     }
 
     // Build 256-entry mask: patternMask[c] has 1-bits where query has char c
     final long[] patternMask = buildPatternMask256(query);
 
-    int best = Integer.MAX_VALUE;
-    List<String> ties = new ArrayList<>();
-
     // Scan dictionary; use length-diff lower bound + in-loop early abandon
     for (int i = 0, n = dictionary.size(); i < n; i++) {
-      final String cand = dictionary.get(i);
+      final String candidate = dictionary.get(i);
 
       // Lower bound: at least the absolute length difference
-      int lenDiff = cand.length() - m;
-      if (lenDiff < 0) lenDiff = -lenDiff;
-      if (lenDiff > best) continue;
+      int lengthDifference = candidate.length() - m;
+      if (lengthDifference < 0) lengthDifference = -lengthDifference;
+      if (lengthDifference > bestDistance) continue;
 
-      int dist = levenshteinBitParallelPruned(query, cand, patternMask, m, best);
-      if (dist > best) continue; // pruned path returns best+1
+      int distance = levenshteinBitParallelPruned(query, candidate, patternMask, m, bestDistance);
+      if (distance > bestDistance) continue; // pruned path returns bestDistance+1
 
-      if (dist < best) {
-        best = dist;
-        ties.clear();
-        ties.add(cand); // dictionary is already lexicographically sorted
-      } else { // dist == best
-        ties.add(cand);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        closestWords.clear();
+        closestWords.add(candidate); // dictionary is already lexicographically sorted
+      } else { // distance == bestDistance
+        closestWords.add(candidate);
       }
     }
 
-    this.minDistance = (best == Integer.MAX_VALUE) ? 0 : best;
-    this.closestWords = ties;
+    this.minDistance = (bestDistance == Integer.MAX_VALUE) ? 0 : bestDistance;
   }
 
   public int getMinDistance() {
@@ -95,21 +89,17 @@ public class ClosestWords {
     // Fast path: equal strings
     if (m == text.length() && query.equals(text)) return 0;
 
-    // Length-difference lower bound
-    int lenDiff = m - text.length();
-    if (lenDiff < 0) lenDiff = -lenDiff;
-    if (bestSoFar != Integer.MAX_VALUE && lenDiff > bestSoFar) return bestSoFar + 1;
-
     long Pv = ~0L; // positive bit-vector (all ones)
     long Mv = 0L; // negative bit-vector (all zeros)
     int score = m; // cost from query to empty (m deletions)
     final int n = text.length();
 
-    for (int j = 0; j < n; j++) {
-      long Eq = patternMask[text.charAt(j) & 0xFF];
+    for (int i = 0; i < n; i++) {
+      long Eq = patternMask[text.charAt(i) & 0xFF];
 
       long Xv = Eq | Mv;
       long Xh = (((Eq & Pv) + Pv) ^ Pv) | Eq;
+
       long Ph = Mv | ~(Xh | Pv);
       long Mh = Pv & Xh;
 
@@ -126,7 +116,7 @@ public class ClosestWords {
 
       // Early-abandon: even with best-case improvements, can't beat bestSoFar
       if (bestSoFar != Integer.MAX_VALUE) {
-        int remaining = n - j - 1;
+        int remaining = n - i - 1;
         int optimistic = score - remaining; // at most -1 per remaining column
         if (optimistic < 0) optimistic = 0;
         if (optimistic > bestSoFar) return bestSoFar + 1;
