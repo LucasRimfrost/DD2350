@@ -33,7 +33,7 @@ public class ClosestWords {
     final long[] patternMask = buildPatternMask256(query);
 
     // Scan dictionary; use length-diff lower bound + in-loop early abandon
-    for (int i = 0, n = dictionary.size(); i < n; i++) {
+    for (int i = 0, n = dictionary.size(); i < n; ++i) {
       final String candidate = dictionary.get(i);
 
       // Lower bound: at least the absolute length difference
@@ -72,7 +72,7 @@ public class ClosestWords {
     final int m = query.length();
     final long[] mask = new long[256];
     long bit = 1L;
-    for (int i = 0; i < m; i++, bit <<= 1) {
+    for (int i = 0; i < m; ++i, bit <<= 1) {
       mask[query.charAt(i) & 0xFF] |= bit; // å/ä/ö are in Latin-1 -> safe with & 0xFF
     }
     return mask;
@@ -89,35 +89,46 @@ public class ClosestWords {
     // Fast path: equal strings
     if (m == text.length() && query.equals(text)) return 0;
 
-    long Pv = ~0L; // positive bit-vector (all ones)
-    long Mv = 0L; // negative bit-vector (all zeros)
-    int score = m; // cost from query to empty (m deletions)
+    // Initialize bit vectors for vertical differences
+    long Pv = ~0L; // positive vertical changes: all +1 initially (first column: 0→1→2...)
+    long Mv = 0L; // negative vertical changes: none initially
+    int score = m; // distance from query to empty string (m deletions)
     final int n = text.length();
 
-    for (int i = 0; i < n; i++) {
+    // Process each character in text (each column in DP matrix)
+    for (int i = 0; i < n; ++i) {
+      // Step 1: Get match positions for current text character
       long Eq = patternMask[text.charAt(i) & 0xFF];
 
+      // Step 2: Create vertical candidates (matches + negative vertical changes)
       long Xv = Eq | Mv;
+
+      // Step 3: Create horizontal candidates through carry propagation
+      // First identify strong diagonal candidates (match + positive vertical)
+      // Then test via addition with carry, isolate carry effects with XOR
+      // Finally combine with original matches to preserve all horizontal signals
       long Xh = (((Eq & Pv) + Pv) ^ Pv) | Eq;
 
-      long Ph = Mv | ~(Xh | Pv);
-      long Mh = Pv & Xh;
+      // Step 4: Calculate actual horizontal changes
+      long Ph = Mv | ~(Xh | Pv); // positions getting +1 horizontally
+      long Mh = Pv & Xh; // positions getting -1 horizontally
 
-      // Branchless update: MSB tells how the last cell changed
-      score += (int) ((Ph >>> (m - 1)) & 1L);
-      score -= (int) ((Mh >>> (m - 1)) & 1L);
+      // Step 5: Update score based on bottom cell change (MSB = last position)
+      score += (int) ((Ph >>> (m - 1)) & 1L); // +1 if bottom cell increased
+      score -= (int) ((Mh >>> (m - 1)) & 1L); // -1 if bottom cell decreased
 
-      // Advance to next column
-      Ph = (Ph << 1) | 1L;
-      Mh <<= 1;
+      // Step 6: Prepare for next column - shift horizontal changes to become vertical
+      Ph = (Ph << 1) | 1L; // shift + set first row (always +1 from left)
+      Mh <<= 1; // shift negative horizontal changes
 
-      Pv = Mh | ~(Xv | Ph);
-      Mv = Ph & Xv;
+      // Step 7: Calculate new vertical changes for next iteration
+      Pv = Mh | ~(Xv | Ph); // positive vertical: from negative horizontal or standard +1
+      Mv = Ph & Xv; // negative vertical: from positive horizontal + vertical candidates
 
-      // Early-abandon: even with best-case improvements, can't beat bestSoFar
+      // Early termination: if even optimal remaining steps can't beat bestSoFar
       if (bestSoFar != Integer.MAX_VALUE) {
         int remaining = n - i - 1;
-        int optimistic = score - remaining; // at most -1 per remaining column
+        int optimistic = score - remaining; // assume -1 per remaining column (best case)
         if (optimistic < 0) optimistic = 0;
         if (optimistic > bestSoFar) return bestSoFar + 1;
       }
