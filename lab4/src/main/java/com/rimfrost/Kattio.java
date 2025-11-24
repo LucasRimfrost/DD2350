@@ -1,27 +1,3 @@
-/**
- * Simple yet moderately fast I/O routines.
- *
- * <p>Example usage:
- *
- * <p>Kattio io = new Kattio(System.in, System.out);
- *
- * <p>while (io.hasMoreTokens()) { int n = io.getInt(); double d = io.getDouble(); double ans = d*n;
- *
- * <p>io.println("Answer: " + ans); }
- *
- * <p>io.close();
- *
- * <p>Some notes:
- *
- * <p>- When done, you should always do io.close() or io.flush() on the Kattio-instance, otherwise,
- * you may lose output.
- *
- * <p>- The getInt(), getDouble(), and getLong() methods will throw an exception if there is no more
- * data in the input, so it is generally a good idea to use hasMoreTokens() to check for
- * end-of-file.
- *
- * @author: Kattis
- */
 package com.rimfrost;
 
 import java.io.BufferedOutputStream;

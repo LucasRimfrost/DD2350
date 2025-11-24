@@ -1,0 +1,241 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[swedish]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{geometry}
+\usepackage{tikz}
+\geometry{margin=2.5cm}
+
+\title{\textbf{Mästarprov 1} \\
+\large DD2350 Algoritmer, datastrukturer och komplexitet \\[0.5em]
+\Large Uppgift 1: Maximalt tal i intervall}
+\author{Lucas Rimfrost \\ rimfrost@ug.kth.se}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\noindent\textit{Denna inlämning avser den skriftliga delen. Jag intygar att arbetet är utfört individuellt enligt hederskodexen.}
+
+\vspace{1em}
+
+\section*{Resursredogörelse}
+Jag har \textbf{inte använt} externa källor utanför kursmaterialet.\\
+
+\noindent Jag har \textbf{använt} Microsoft Copilot för att få hjälp med att:
+\begin{itemize}
+    \item Formulera och förtydliga algoritmen så jag förstår problemet bättre.
+    \item Visualisering av datastrukturen.
+    \item Hur man skriver pseudokod på stiligt och korrekt sätt i LaTeX-syntax.
+\end{itemize}
+
+\noindent Skärmdumpar av Copilot-konversationerna har bifogats som kommentar
+till inlämningen på Canvas.
+
+\section{Algoritmidé}
+
+\subsection{Grundprincip}
+
+Datastrukturen som används för algoritmen är ett binärt träd där varje nod representerar ett bitprefix
+av ett index i arrayen. Varje nivå i trädet är en bit-position i indexet. Det är också endast de index
+som tilldelats ett värde som finns i trädet. Varje nod har dessutom ett attribut \texttt{maxinsubtree}
+som lagrar största värdet i delträdet som noden är roten till.
+
+Algoritmen fungerar på så sätt att indatan är trie-arrayen, samt det intervall man vill hitta maxvärdet
+för. Man börjar från roten som ligger på nivå H ($H = \lfloor\log_2 n\rfloor$), och undersöker
+bit-värdet för bit $i$ i både \texttt{left} och \texttt{right}. Nu finns det tre olika fall som kan ske.
+
+Första fallet är om båda bitarna är 0. Det innebär att hela intervallet ligger i vänster delträd, så
+man skippar hela höger delträd och rekursivt fortsätter till nästa nivå ned i vänster barn/delträd.
+
+Andra fallet är om båda bitarna är 1 och innebär samma sak som första fallet fast tvärtom. Alltså ligger
+hela intervallet i höger delträd.
+
+Det tredje fallet är om intervallet delar sig i de båda delträden ($bit(i, \texttt{left}) \neq bit(i, \texttt{right})$).
+Då kommer man behöva undersöka två olika vägar i trädet, en i det vänstra-- och en i högra delträdet.
+För vänster delträd följer man \texttt{left}:s bitväg ner i vänster delträd och hittar maximala värdet.
+Detta görs genom att för varje nivå i vänster delträd undersöker man bitvärdet i nuvarande position.
+Om $bit(i, left) = 0$ vet vi att höger barn ligger helt inom intervallet. Det som sker då är att vi fortsätter
+att traversera med rekursion till nästa nivå endast för vänster barn. För höger barn, då vi vet att
+den ligger inom hela intervallet och \texttt{maxinsubtree} kan användas direkt och returnera maxvärdet
+för hela höger delträd.
+
+Om $bit(i, right) = 1$ så rekursivt går vi ner till nästa nivå till endast högra barnets delträd eftersom
+vi då vet att vänster delträd inte kan finnas inom intervallet och kan hoppas över helt.
+
+Sedan när rekursionen har nått basfallet när antingen $v = null$ eller $b \le 0$ börjar
+rekursionen avvecklas och $max(m_1, m_2)$ för varje rekursionsdjup returneras vilket till slut kommer att returnera
+maximala värdet i det vänstra delträdet.
+
+Exakt samma sak sker samtidigt i högra delträd och gör samma sak. Skillnaden är att det som sker när
+$bit(i, left) = 0$ i vänster delträd sker när $bit(i, right) = 1$.
+
+\subsection{Illustration}
+
+\begin{figure}[H]
+\centering
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{cc}
+  \includegraphics[width=0.45\textwidth]{algoritm_steg1_detaljerad.png} &
+  \includegraphics[width=0.45\textwidth]{algoritm_steg2_detaljerad.png} \\[-0.3em]
+  \small (a) Steg 1: Intervallet [2..5] delar sig vid roten &
+  \small (b) Steg 2: Traversering i vänstra delträdet \\[0.5em]
+  \includegraphics[width=0.45\textwidth]{algoritm_steg3_detaljerad.png} &
+  \includegraphics[width=0.45\textwidth]{algoritm_steg4_detaljerad.png} \\[-0.3em]
+  \small (c) Steg 3: Traversering i högra delträdet &
+  \small (d) Steg 4: Kombinera delresultat
+\end{tabular}
+\caption{Steg-för-steg-illustration av algoritmen för att hitta maximalt värde i intervallet [2..5].
+Varje bild motsvarar ett rekursionssteg enligt pseudokoden.}
+\label{fig:algoritmsteg}
+\end{figure}
+
+\section{Pseudokod}
+
+\subsection{Huvudfunktion}
+
+\begin{algorithm}[H]
+\caption{MAXININTERVAL($a$, $left$, $right$)}
+\begin{algorithmic}[1]
+\Require $a$: trie-arrayen, $left, right$: intervallgränser
+\Ensure Maximum i $a[left..right]$, eller 0
+\State $H \gets \lfloor\log_2 n\rfloor$ \Comment{Högsta bitindex (MSB)}
+\State \Return \Call{SökMax}{$a.root, left, right, H$}
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Hitta var intervallet delar sig}
+
+\begin{algorithm}[H]
+\caption{SökMax($v$, $L$, $R$, $b$)}
+\begin{algorithmic}[1]
+\Require $v$: aktuell nod, $L, R$: intervallgränser, $b$: aktuell bitposition
+\Ensure Maximum i intervallet inom nodens delträd
+\If{$v = \texttt{null}$}
+    \State \Return 0 \Comment{Tomt delträd}
+\EndIf
+\If{$b < 0$}
+    \State \Return $v.maxinsubtree$ \Comment{Nått löv efter $H+1$ bitar}
+\EndIf
+\State $L_b \gets \texttt{bit}(L, b)$ \Comment{Bit $b$ i left}
+\State $R_b \gets \texttt{bit}(R, b)$ \Comment{Bit $b$ i right}
+\If{$L_b = 0$ \textbf{and} $R_b = 0$}
+    \State \Return \Call{SökMax}{$v.left, L, R, b-1$} \Comment{Båda går vänster}
+\EndIf
+\If{$L_b = 1$ \textbf{and} $R_b = 1$}
+    \State \Return \Call{SökMax}{$v.right, L, R, b-1$} \Comment{Båda går höger}
+\EndIf
+\State \Comment{Intervallet delar sig: $L$ går vänster, $R$ går höger}
+\State $m_1 \gets$ \Call{SökFrånLeft}{$v.left, L, b-1$} \Comment{Från $L$ till slutet av vänster}
+\State $m_2 \gets$ \Call{SökTillRight}{$v.right, R, b-1$} \Comment{Från början till $R$ i höger}
+\State \Return $\max(m_1, m_2)$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Sök maximalt värde från vänster}
+
+\begin{algorithm}[H]
+\caption{SökFrånLeft($v$, $L$, $b$)}
+\begin{algorithmic}[1]
+\Require $v$: aktuell nod, $L$: vänster gräns, $b$: aktuell bitposition
+\Ensure Maximum från $L$ till slutet av delträdet
+\If{$v = \texttt{null}$}
+    \State \Return 0
+\EndIf
+\If{$b < 0$}
+    \State \Return $v.maxinsubtree$ \Comment{Nått löv}
+\EndIf
+\State $L_b \gets \texttt{bit}(L, b)$
+\If{$L_b = 0$}
+    \State \Comment{$L$ går vänster $\Rightarrow$ höger barn ligger helt inom intervallet}
+    \State $m_1 \gets$ \Call{SökFrånLeft}{$v.left, L, b-1$}
+    \State $m_2 \gets v.right.maxinsubtree$ (eller 0 om null) \Comment{Ta hela höger!}
+    \State \Return $\max(m_1, m_2)$
+\Else
+    \State \Comment{$L$ går höger $\Rightarrow$ vänster barn ligger före $L$}
+    \State \Return \Call{SökFrånLeft}{$v.right, L, b-1$} \Comment{Fortsätt bara åt höger}
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Sök maximalt värde från höger}
+
+\begin{algorithm}[H]
+\caption{SökTillRight($v$, $R$, $b$)}
+\begin{algorithmic}[1]
+\Require $v$: aktuell nod, $R$: höger gräns, $b$: aktuell bitposition
+\Ensure Maximum från början av delträdet till $R$
+\If{$v = \texttt{null}$}
+    \State \Return 0
+\EndIf
+\If{$b < 0$}
+    \State \Return $v.maxinsubtree$ \Comment{Nått löv}
+\EndIf
+\State $R_b \gets \texttt{bit}(R, b)$
+\If{$R_b = 1$}
+    \State \Comment{$R$ går höger $\Rightarrow$ vänster barn ligger helt inom intervallet}
+    \State $m_1 \gets v.left.maxinsubtree$ (eller 0 om null) \Comment{Ta hela vänster!}
+    \State $m_2 \gets$ \Call{SökTillRight}{$v.right, R, b-1$}
+    \State \Return $\max(m_1, m_2)$
+\Else
+    \State \Comment{$R$ går vänster $\Rightarrow$ höger barn ligger efter $R$}
+    \State \Return \Call{SökTillRight}{$v.left, R, b-1$} \Comment{Fortsätt bara åt vänster}
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\section{Tidskomplexitetsanalys}
+
+Vi vet att i trädstrukturen finns det $\lfloor\log_2 n\rfloor$ nivåer (lägsta nivå är 0) i trädet där $n$ är det största indexet.
+Detta är för att man behöver $\lceil \log_2 n \rceil$ bitar för att representera tal upp till $n$.
+
+Sedan analyserar vi hur mycket arbete som görs vid varje nod vi besöker. Vid varje nod gör
+vi 1--2 anrop till \texttt{bit}$(x, b)$ för att kolla vilken riktning \texttt{left} och \texttt{right}
+tar, vilket har en enhetskostnad på $O(1)$ per anrop enligt uppgiftens antagande. Andra operationer såsom
+jämförelser, max-operationer och eventuell läsning av \texttt{maxinsubtree} har även de enhetskostnad
+på $O(1)$. Det totala arbetet per nod är alltså $O(1)$.
+
+För sökandet av maxvärdet inom ett intervall kommer algoritmen att följa i värsta fall två vägar
+genom trädet -- en väg för \texttt{left} och en väg för \texttt{right}. Varje väg går från roten
+ner till ett löv, vilket innebär att varje väg besöker högst $\log n$ noder. När \texttt{left} eller
+\texttt{right} rör sig åt motsatt håll vid en nod (alltså går åt ett håll medan intervallet sträcker
+sig åt andra hållet också), så tar vi \texttt{maxinsubtree} för sidogrenen direkt utan att besöka dess
+noder, vilket är en optimering som minimerar antalet noder som besöks. Detta är tack vare
+nyckelobservationen vi beskrev tidigare. Eftersom vi följer två vägar som vardera besöker
+högst $\log n$ noder, blir det totala antalet besökta noder $O(\log n)$.
+
+Tekniskt sett, då man går två vägar i trädet är enhetskostnaden egentligen
+$O(2\cdot\log n)$ i värsta fall. Detta är på grund av att det är två vägar där man besöker noder. Dock så
+är det faktiska enhetskostnaden ändå $O(\log n)$ eftersom vi undersöker hur algoritmens körtid växer
+när $n$ blir större, inte antal maskinoperationer som utförs. Så konstanter i enhetskostnaden kan
+förkortas bort i detta fall. Detta kallas för asymptotisk komplexitet.
+
+När vi kombinerar dessa resultat får vi att den totala tidskomplexiteten är $O(\log n)$ noder multiplicerat
+med $O(1)$ arbete per nod, vilket ger $\mathbf{O(\log n)}$.
+
+\section{Korrekthetsbevis}
+
+För att visa att en algoritm är korrekt behöver man enligt föreläsning 6 bevisa total korrekthet, vilket
+består av partiell korrekthet och terminering.
+
+Partiell korrekthet betyder att om algoritmen terminerar så ger den rätt svar. Man visar detta genom
+att bestämma ingångsvillkor (PRE) och utgångsvillkor (POST) för algoritmen. PRE beskriver vad som
+måste gälla när algoritmen startar, till exempel att indata har rätt typ och ligger inom tillåtna
+värden. POST beskriver vad som ska vara sant när algoritmen är klar, alltså vilken egenskap resultatet
+måste ha.
+
+En viktig del av korrekthetsbevis är att formulera invarianter. En invariant är ett påstående
+som ska gälla vid vissa punkter i koden, som före och efter en loop eller vid rekursiva anrop. Man
+måste visa att sina bestämda invarianter håller genom hela körningen. För den här algoritmen skulle
+man behöva ta fram invarianter som beskriver vilken del av intervallet som täcks vid varje steg.
+
+Sedan för total korrekthet måste man också visa terminering, alltså att algoritmen alltid slutar. Man gör
+detta genom att visa att varje iteration eller rekursivt anrop arbetar på ett mindre problem. I detta
+fall minskar bitpositionen $b$ med 1 för varje rekursivt anrop, så efter högst $\Theta(\log n)$ steg
+når man ett basfall och algoritmen terminerar.
+
+\end{document}
